@@ -209,6 +209,8 @@ struct PixelShader {
     char const_refs[32][32];
 };
 
+ static QString* get_input_var(struct PixelShader *ps, struct InputInfo in, bool is_alpha);
+
 static void add_var_ref(struct PixelShader *ps, const char *var)
 {
     int i;
@@ -228,16 +230,9 @@ static void add_const_ref(struct PixelShader *ps, const char *var)
 }
 
 // Get the code for a variable used in the program
-static QString* get_var(struct PixelShader *ps, int reg, bool is_dest)
+static QString* get_var(struct PixelShader *ps, int reg)
 {
     switch (reg) {
-    case PS_REGISTER_DISCARD:
-        if (is_dest) {
-            return qstring_from_str("");
-        } else {
-            return qstring_from_str("0.0");
-        }
-        break;
     case PS_REGISTER_C0:
         if (ps->flags & PS_COMBINERCOUNT_UNIQUE_C0 || ps->cur_stage == 8) {
             QString *reg = qstring_from_fmt("c0_%d", ps->cur_stage);
@@ -280,7 +275,35 @@ static QString* get_var(struct PixelShader *ps, int reg, bool is_dest)
         return qstring_from_str("r1");
     case PS_REGISTER_V1R0_SUM:
         add_var_ref(ps, "r0");
-        return qstring_from_str("(v1 + r0)");
+
+        struct InputInfo v1_info;
+        v1_info.reg = PS_REGISTER_V1;
+        if (ps->final_input.inv_v1) {
+            v1_info.mod = PS_INPUTMAPPING_UNSIGNED_INVERT;
+        } else {
+            v1_info.mod = PS_INPUTMAPPING_UNSIGNED_IDENTITY;
+        }
+        v1_info.chan = PS_CHANNEL_RGB;
+        QString *v1 = get_input_var(ps, v1_info, false);
+
+        struct InputInfo r0_info;
+        r0_info.reg = PS_REGISTER_R0;
+        if (ps->final_input.inv_r0) {
+            r0_info.mod = PS_INPUTMAPPING_UNSIGNED_INVERT;
+        } else {
+            r0_info.mod = PS_INPUTMAPPING_UNSIGNED_IDENTITY;
+        }
+        r0_info.chan = PS_CHANNEL_RGB;
+        QString *r0 = get_input_var(ps, r0_info, false);
+
+        QString *reg = qstring_from_fmt(ps->final_input.clamp_sum ?
+                                     "vec4(clamp(%s + %s, 0.0, 1.0), 0.0)" :
+                                     "vec4(%s + %s, 0.0)",
+                                        qstring_get_str(v1),
+                                        qstring_get_str(r0));
+        qobject_unref(v1);
+        qobject_unref(r0);
+        return reg;
     case PS_REGISTER_EF_PROD:
         return qstring_from_fmt("(%s * %s)", qstring_get_str(ps->varE),
                                 qstring_get_str(ps->varF));
@@ -293,11 +316,17 @@ static QString* get_var(struct PixelShader *ps, int reg, bool is_dest)
 // Get input variable code
 static QString* get_input_var(struct PixelShader *ps, struct InputInfo in, bool is_alpha)
 {
-    QString *reg = get_var(ps, in.reg, false);
 
-    if (strcmp(qstring_get_str(reg), "0.0") != 0
-        && (in.reg != PS_REGISTER_EF_PROD
-            || strstr(qstring_get_str(reg), ".a") == NULL)) {
+    QString *reg;
+    if (in.reg == PS_REGISTER_ZERO) {
+        if (is_alpha) {
+            reg = qstring_from_str("0.0");
+        } else {
+            reg = qstring_from_str("vec3(0.0)");
+        }
+    } else {
+        reg = get_var(ps, in.reg);
+
         switch (in.chan) {
         case PS_CHANNEL_RGB:
             if (is_alpha) {
@@ -307,7 +336,11 @@ static QString* get_input_var(struct PixelShader *ps, struct InputInfo in, bool 
             }
             break;
         case PS_CHANNEL_ALPHA:
-            qstring_append(reg, ".a");
+            if (is_alpha) {
+                qstring_append(reg, ".a");
+            } else {
+                qstring_append(reg, ".aaa");
+            }
             break;
         default:
             assert(false);
@@ -385,21 +418,20 @@ static QString* get_output(QString *reg, int mapping)
 // Add the GLSL code for a stage
 static void add_stage_code(struct PixelShader *ps,
                            struct InputVarInfo input, struct OutputInfo output,
-                           const char *write_mask, bool is_alpha)
+                           bool is_alpha)
 {
+    const char *write_mask = is_alpha ? "a" : "rgb";
+
     QString *a = get_input_var(ps, input.a, is_alpha);
     QString *b = get_input_var(ps, input.b, is_alpha);
     QString *c = get_input_var(ps, input.c, is_alpha);
     QString *d = get_input_var(ps, input.d, is_alpha);
 
-    const char *caster = "";
-    if (strlen(write_mask) == 3) {
-        caster = "vec3";
-    }
 
     QString *ab;
     if (output.ab_op == PS_COMBINEROUTPUT_AB_DOT_PRODUCT) {
-        ab = qstring_from_fmt("dot(%s, %s)",
+        assert(!is_alpha);
+        ab = qstring_from_fmt("vec3(dot(%s, %s))",
                               qstring_get_str(a), qstring_get_str(b));
     } else {
         ab = qstring_from_fmt("(%s * %s)",
@@ -408,7 +440,8 @@ static void add_stage_code(struct PixelShader *ps,
 
     QString *cd;
     if (output.cd_op == PS_COMBINEROUTPUT_CD_DOT_PRODUCT) {
-        cd = qstring_from_fmt("dot(%s, %s)",
+        assert(!is_alpha);
+        cd = qstring_from_fmt("vec3(dot(%s, %s))",
                               qstring_get_str(c), qstring_get_str(d));
     } else {
         cd = qstring_from_fmt("(%s * %s)",
@@ -416,11 +449,11 @@ static void add_stage_code(struct PixelShader *ps,
     }
 
     if (output.ab != PS_REGISTER_DISCARD) {
-        QString *ab_dest = get_var(ps, output.ab, true);
+        QString *ab_dest = get_var(ps, output.ab);
         QString *ab_mapping = get_output(ab, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
-                           qstring_get_str(ab_dest), write_mask, caster, qstring_get_str(ab_mapping));
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
+                           qstring_get_str(ab_dest), write_mask, qstring_get_str(ab_mapping));
 
         /* FIXME: Will these still write rgb? */
         if (!is_alpha && output.flags & PS_COMBINEROUTPUT_AB_BLUE_TO_ALPHA) {
@@ -433,11 +466,11 @@ static void add_stage_code(struct PixelShader *ps,
     }
 
     if (output.cd != PS_REGISTER_DISCARD) {
-        QString *cd_dest = get_var(ps, output.cd, true);
+        QString *cd_dest = get_var(ps, output.cd);
         QString *cd_mapping = get_output(cd, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
-                           qstring_get_str(cd_dest), write_mask, caster, qstring_get_str(cd_mapping));
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
+                           qstring_get_str(cd_dest), write_mask, qstring_get_str(cd_mapping));
 
         /* FIXME: Will these still write rgb? */
         if (!is_alpha && output.flags & PS_COMBINEROUTPUT_CD_BLUE_TO_ALPHA) {
@@ -450,7 +483,7 @@ static void add_stage_code(struct PixelShader *ps,
     }
 
     if (output.muxsum != PS_REGISTER_DISCARD) {
-        QString *sum_dest = get_var(ps, output.muxsum, true);
+        QString *sum_dest = get_var(ps, output.muxsum);
         QString *sum;
         if (output.muxsum_op == PS_COMBINEROUTPUT_AB_CD_SUM) {
             sum = qstring_from_fmt("(%s + %s)", qstring_get_str(ab), qstring_get_str(cd));
@@ -461,8 +494,8 @@ static void add_stage_code(struct PixelShader *ps,
         }
         QString *sum_mapping = get_output(sum, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
-                           qstring_get_str(sum_dest), write_mask, caster, qstring_get_str(sum_mapping));
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
+                           qstring_get_str(sum_dest), write_mask, qstring_get_str(sum_mapping));
 
         qobject_unref(sum);
         qobject_unref(sum_mapping);
@@ -489,7 +522,7 @@ static void add_final_stage_code(struct PixelShader *ps, struct FCInputInfo fina
     QString *d = get_input_var(ps, final.d, false);
     QString *g = get_input_var(ps, final.g, true);
 
-    qstring_append_fmt(ps->code, "fragColor.rgb = %s + mix(vec3(%s), vec3(%s), vec3(%s));\n",
+    qstring_append_fmt(ps->code, "fragColor.rgb = %s + mix(%s, %s, %s);\n",
                        qstring_get_str(d), qstring_get_str(c),
                        qstring_get_str(b), qstring_get_str(a));
     qstring_append_fmt(ps->code, "fragColor.a = %s;\n", qstring_get_str(g));
@@ -713,8 +746,8 @@ static QString* psh_convert(struct PixelShader *ps)
     for (i = 0; i < ps->num_stages; i++) {
         ps->cur_stage = i;
         qstring_append_fmt(ps->code, "// Stage %d\n", i);
-        add_stage_code(ps, ps->stage[i].rgb_input, ps->stage[i].rgb_output, "rgb", false);
-        add_stage_code(ps, ps->stage[i].alpha_input, ps->stage[i].alpha_output, "a", true);
+        add_stage_code(ps, ps->stage[i].rgb_input, ps->stage[i].rgb_output, false);
+        add_stage_code(ps, ps->stage[i].alpha_input, ps->stage[i].alpha_output, true);
     }
 
     if (ps->final_input.enabled) {
