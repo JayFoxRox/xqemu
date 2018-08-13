@@ -484,8 +484,9 @@ static void add_stage_code(struct PixelShader *ps,
                                write_mask, write_mask, write_mask);
         } else {
             assert(ps->flags & PS_COMBINERCOUNT_MUX_MSB);
-            qstring_append_fmt(ps->code, "sum_in.%s = mix(ab_in.%s, cd_in.%s, r0.a < 0.5);\n",
-                               write_mask, write_mask, write_mask);
+            qstring_append_fmt(ps->code, "sum_in.%s = mix(ab_in.%s, cd_in.%s, %s(r0.a < 0.5));\n",
+                               write_mask, write_mask, write_mask,
+                               is_alpha ? "bool" : "bvec3");
         }
 
         QString* sum_reg = qstring_from_fmt("sum_in.%s", write_mask);
