@@ -415,7 +415,7 @@ static QString* get_output(QString *reg, int mapping)
     return res;
 }
 
-// Add the GLSL code for a stage
+// Add the GLSL code for a stage which does operation
 static void add_stage_code(struct PixelShader *ps,
                            struct InputVarInfo input, struct OutputInfo output,
                            bool is_alpha)
@@ -428,86 +428,106 @@ static void add_stage_code(struct PixelShader *ps,
     QString *d = get_input_var(ps, input.d, is_alpha);
 
 
-    QString *ab;
     if (output.ab_op == PS_COMBINEROUTPUT_AB_DOT_PRODUCT) {
         assert(!is_alpha);
-        ab = qstring_from_fmt("vec3(dot(%s, %s))",
-                              qstring_get_str(a), qstring_get_str(b));
+        qstring_append_fmt(ps->code, "ab_in.%s = vec3(dot(%s, %s));\n",
+                           write_mask, qstring_get_str(a), qstring_get_str(b));
     } else {
-        ab = qstring_from_fmt("(%s * %s)",
-                              qstring_get_str(a), qstring_get_str(b));
+        qstring_append_fmt(ps->code, "ab_in.%s = (%s * %s);\n",
+                           write_mask, qstring_get_str(a), qstring_get_str(b));
     }
 
-    QString *cd;
     if (output.cd_op == PS_COMBINEROUTPUT_CD_DOT_PRODUCT) {
         assert(!is_alpha);
-        cd = qstring_from_fmt("vec3(dot(%s, %s))",
-                              qstring_get_str(c), qstring_get_str(d));
+        qstring_append_fmt(ps->code, "cd_in.%s = vec3(dot(%s, %s));\n",
+                           write_mask, qstring_get_str(c), qstring_get_str(d));
     } else {
-        cd = qstring_from_fmt("(%s * %s)",
-                              qstring_get_str(c), qstring_get_str(d));
+        qstring_append_fmt(ps->code, "cd_in.%s = (%s * %s);\n",
+                           write_mask, qstring_get_str(c), qstring_get_str(d));
     }
 
     if (output.ab != PS_REGISTER_DISCARD) {
-        QString *ab_dest = get_var(ps, output.ab);
-        QString *ab_mapping = get_output(ab, output.mapping);
+        QString* ab_reg = qstring_from_fmt("ab_in.%s", write_mask);
+        QString *ab_mapping = get_output(ab_reg, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
-                           qstring_get_str(ab_dest), write_mask, qstring_get_str(ab_mapping));
+        qstring_append_fmt(ps->code, "ab_out.%s = clamp(%s, -1.0, 1.0);\n",
+                           write_mask, qstring_get_str(ab_mapping));
 
         /* FIXME: Will these still write rgb? */
         if (!is_alpha && output.flags & PS_COMBINEROUTPUT_AB_BLUE_TO_ALPHA) {
-            qstring_append_fmt(ps->code, "%s.a = %s.b;\n",
-                               qstring_get_str(ab_dest), qstring_get_str(ab_dest));
+            qstring_append_fmt(ps->code, "ab_out.a = ab_out.b;\n");
         }
 
         qobject_unref(ab_mapping);
-        qobject_unref(ab_dest);
+        qobject_unref(ab_reg);
     }
 
     if (output.cd != PS_REGISTER_DISCARD) {
-        QString *cd_dest = get_var(ps, output.cd);
-        QString *cd_mapping = get_output(cd, output.mapping);
+        QString* cd_reg = qstring_from_fmt("cd_in.%s", write_mask);
+        QString *cd_mapping = get_output(cd_reg, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
-                           qstring_get_str(cd_dest), write_mask, qstring_get_str(cd_mapping));
+        qstring_append_fmt(ps->code, "cd_out.%s = clamp(%s, -1.0, 1.0);\n",
+                           write_mask, qstring_get_str(cd_mapping));
 
         /* FIXME: Will these still write rgb? */
         if (!is_alpha && output.flags & PS_COMBINEROUTPUT_CD_BLUE_TO_ALPHA) {
-            qstring_append_fmt(ps->code, "%s.a = %s.b;\n",
-                               qstring_get_str(cd_dest), qstring_get_str(cd_dest));
+            qstring_append_fmt(ps->code, "cd_out.a = cd_out.b;\n");
         }
 
         qobject_unref(cd_mapping);
-        qobject_unref(cd_dest);
+        qobject_unref(cd_reg);
     }
 
     if (output.muxsum != PS_REGISTER_DISCARD) {
-        QString *sum_dest = get_var(ps, output.muxsum);
-        QString *sum;
         if (output.muxsum_op == PS_COMBINEROUTPUT_AB_CD_SUM) {
-            sum = qstring_from_fmt("(%s + %s)", qstring_get_str(ab), qstring_get_str(cd));
+            qstring_append_fmt(ps->code, "sum_in.%s = (ab_in.%s + cd_in.%s);\n",
+                               write_mask, write_mask, write_mask);
         } else {
             assert(ps->flags & PS_COMBINERCOUNT_MUX_MSB);
-            sum = qstring_from_fmt("mix(%s, %s, r0.a < 0.5)",
-                                   qstring_get_str(ab), qstring_get_str(cd));
+            qstring_append_fmt(ps->code, "sum_in.%s = mix(ab_in.%s, cd_in.%s, r0.a < 0.5);\n",
+                               write_mask, write_mask, write_mask);
         }
-        QString *sum_mapping = get_output(sum, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = clamp(%s, -1.0, 1.0);\n",
-                           qstring_get_str(sum_dest), write_mask, qstring_get_str(sum_mapping));
+        QString* sum_reg = qstring_from_fmt("sum_in.%s", write_mask);
+        QString *sum_mapping = get_output(sum_reg, output.mapping);
 
-        qobject_unref(sum);
+        qstring_append_fmt(ps->code, "sum_out.%s = clamp(%s, -1.0, 1.0);\n",
+                           write_mask, qstring_get_str(sum_mapping));
+
         qobject_unref(sum_mapping);
-        qobject_unref(sum_dest);
+        qobject_unref(sum_reg);
     }
 
     qobject_unref(a);
     qobject_unref(b);
     qobject_unref(c);
     qobject_unref(d);
-    qobject_unref(ab);
-    qobject_unref(cd);
+}
+
+// Add the GLSL code for a stage which does writeback
+static void add_stage_code_writeback(struct PixelShader *ps,
+                                     struct OutputInfo output,
+                                     bool is_alpha)
+{
+    const char *write_mask = is_alpha ? "a" : "rgb";
+
+    if (output.ab != PS_REGISTER_DISCARD) {
+        QString *ab_dest = get_var(ps, output.ab);
+        qstring_append_fmt(ps->code, "%s.%s = ab_out.%s;\n", qstring_get_str(ab_dest), write_mask, write_mask);
+        qobject_unref(ab_dest);
+    }
+
+    if (output.cd != PS_REGISTER_DISCARD) {
+        QString *cd_dest = get_var(ps, output.cd);
+        qstring_append_fmt(ps->code, "%s.%s = cd_out.%s;\n", qstring_get_str(cd_dest), write_mask, write_mask);
+        qobject_unref(cd_dest);
+    }
+
+    if (output.muxsum != PS_REGISTER_DISCARD) {
+        QString *sum_dest = get_var(ps, output.muxsum);
+        qstring_append_fmt(ps->code, "%s.%s = sum_out.%s;\n", qstring_get_str(sum_dest), write_mask, write_mask);
+        qobject_unref(sum_dest);
+    }
 }
 
 // Add code for the final combiner stage
@@ -603,6 +623,14 @@ static QString* psh_convert(struct PixelShader *ps)
     qstring_append(vars, "\n");
     qstring_append(vars, "vec4 v0 = pD0;\n");
     qstring_append(vars, "vec4 v1 = pD1;\n");
+    qstring_append(vars, "\n");
+    qstring_append(vars, "vec4 ab_in;\n");
+    qstring_append(vars, "vec4 ab_out;\n");
+    qstring_append(vars, "vec4 cd_in;\n");
+    qstring_append(vars, "vec4 cd_out;\n");
+    qstring_append(vars, "vec4 sum_in;\n");
+    qstring_append(vars, "vec4 sum_out;\n");
+
 
     ps->code = qstring_new();
 
@@ -748,6 +776,8 @@ static QString* psh_convert(struct PixelShader *ps)
         qstring_append_fmt(ps->code, "// Stage %d\n", i);
         add_stage_code(ps, ps->stage[i].rgb_input, ps->stage[i].rgb_output, false);
         add_stage_code(ps, ps->stage[i].alpha_input, ps->stage[i].alpha_output, true);
+        add_stage_code_writeback(ps, ps->stage[i].rgb_output, false);
+        add_stage_code_writeback(ps, ps->stage[i].alpha_output, true);
     }
 
     if (ps->final_input.enabled) {
