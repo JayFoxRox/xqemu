@@ -419,7 +419,7 @@ static void add_stage_code(struct PixelShader *ps,
         QString *ab_dest = get_var(ps, output.ab, true);
         QString *ab_mapping = get_output(ab, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = %s(%s);\n",
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
                            qstring_get_str(ab_dest), write_mask, caster, qstring_get_str(ab_mapping));
 
         /* FIXME: Will these still write rgb? */
@@ -436,7 +436,7 @@ static void add_stage_code(struct PixelShader *ps,
         QString *cd_dest = get_var(ps, output.cd, true);
         QString *cd_mapping = get_output(cd, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = %s(%s);\n",
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
                            qstring_get_str(cd_dest), write_mask, caster, qstring_get_str(cd_mapping));
 
         /* FIXME: Will these still write rgb? */
@@ -461,7 +461,7 @@ static void add_stage_code(struct PixelShader *ps,
         }
         QString *sum_mapping = get_output(sum, output.mapping);
 
-        qstring_append_fmt(ps->code, "%s.%s = %s(%s);\n",
+        qstring_append_fmt(ps->code, "%s.%s = clamp(%s(%s), -1.0, 1.0);\n",
                            qstring_get_str(sum_dest), write_mask, caster, qstring_get_str(sum_mapping));
 
         qobject_unref(sum);
