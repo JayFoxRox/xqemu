@@ -479,6 +479,10 @@ static void add_stage_code(struct PixelShader *ps,
     }
 
     if (output.muxsum != PS_REGISTER_DISCARD) {
+
+        assert(output.ab_op != PS_COMBINEROUTPUT_AB_DOT_PRODUCT);
+        assert(output.cd_op != PS_COMBINEROUTPUT_CD_DOT_PRODUCT);
+
         if (output.muxsum_op == PS_COMBINEROUTPUT_AB_CD_SUM) {
             qstring_append_fmt(ps->code, "sum_in.%s = (ab_in.%s + cd_in.%s);\n",
                                write_mask, write_mask, write_mask);
