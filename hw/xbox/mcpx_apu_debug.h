@@ -31,4 +31,8 @@
 /* Generate a tone in the MIXBIN for every channel */
 #define GENERATE_MIXBIN_BEEP      0
 
+/* Debug feature to enable VP audio output for debugging */
+#define PLAYBACK_VP_BINS_MASK     0x00000001 /* 32-bits, 1 bit per bin */
+#define DUMP_VP_BINS_MASK         0x00000001 /* 32-bits, 1 bit per bin */
+
 #endif

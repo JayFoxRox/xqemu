@@ -31,6 +31,10 @@
 
 #include "mcpx_apu_debug.h"
 
+#if PLAYBACK_VP_BINS_MASK > 0
+#   include "audio/audio.h"
+#endif
+
 #include "hw/xbox/mcpx_apu.h"
 
 #define NV_PAPU_ISTS                                     0x00001000
@@ -217,10 +221,27 @@ typedef struct MCPXAPUState {
 
     uint32_t regs[0x20000];
 
+    /* Debug features */
+
+#if PLAYBACK_VP_BINS_MASK > 0
+    QEMUSoundCard card;
+#endif
+
+#if PLAYBACK_VP_BINS_MASK > 0
+    SWVoiceOut *vp_bins_out;
+#endif
+#if DUMP_VP_BINS_MASK > 0
+    FILE *vp_bin_files[NUM_MIXBINS];
+#endif
+
 } MCPXAPUState;
 
 #define MCPX_APU_DEVICE(obj) \
     OBJECT_CHECK(MCPXAPUState, (obj), "mcpx-apu")
+
+//FIXME: This is a hack, we already include the header above
+//       This file should be linked through Makefile.objs
+#include "mcpx_apu_debug.c"
 
 static uint32_t voice_get_mask(MCPXAPUState *d,
                                unsigned int voice_handle,
@@ -866,6 +887,10 @@ static void se_frame(void *opaque)
     }
 #endif
 
+#if (PLAYBACK_VP_BINS_MASK > 0) || (DUMP_VP_BINS_MASK > 0)
+    debug_vp_bins(d, mixbins);
+#endif
+
     /* Write VP results to the GP DSP MIXBUF */
     for (mixbin = 0; mixbin < NUM_MIXBINS; mixbin++) {
         for (sample = 0; sample < NUM_SAMPLES_PER_FRAME; sample++) {
@@ -919,6 +944,11 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
     d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
     d->gp.dsp = dsp_init(d, gp_scratch_rw, gp_fifo_rw);
     d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
+
+#if (PLAYBACK_VP_BINS_MASK > 0) || (DUMP_VP_BINS_MASK > 0)
+    /* Set up debuging */
+    initialize_audio_debugger(d);
+#endif
 }
 
 static void mcpx_apu_class_init(ObjectClass *klass, void *data)
