@@ -73,6 +73,7 @@ set -x # Print commands from now on
     --target-list=i386-softmmu \
     --enable-sdl \
     --with-sdlabi=2.0 \
+    --audio-drv-list=alsa \
     --disable-curl \
     --disable-vnc \
     --disable-docs \
