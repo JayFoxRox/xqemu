@@ -2,7 +2,7 @@
  * QEMU MCPX Audio Processing Unit implementation
  *
  * Copyright (c) 2012 espes
- * Copyright (c) 2018 Jannik Vogel
+ * Copyright (c) 2018-2019 Jannik Vogel
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Lesser General Public
@@ -24,6 +24,11 @@
 #include "hw/pci/pci.h"
 #include "cpu.h"
 #include "hw/xbox/dsp/dsp.h"
+#include "audio/audio.h"
+#include <math.h>
+
+#define NUM_SAMPLES_PER_FRAME 32
+#define NUM_MIXBINS 32
 
 #include "hw/xbox/mcpx_apu.h"
 
@@ -182,6 +187,13 @@ static const struct {
 # define MCPX_DPRINTF(format, ...)       do { } while (0)
 #endif
 
+/* More debug functionality */
+#define GENERATE_TONE             1
+
+/* Debug feature to enable VP audio output for debugging */
+#define PLAYBACK_VP_BINS_MASK     0x00000000 /* 32-bits, 1 bit per bin */
+#define DUMP_VP_BINS_MASK         0x00000000 /* 32-bits, 1 bit per bin */
+
 typedef struct MCPXAPUState {
     PCIDevice dev;
 
@@ -215,6 +227,15 @@ typedef struct MCPXAPUState {
     } ep;
 
     uint32_t regs[0x20000];
+
+#if PLAYBACK_VP_BINS_MASK > 0
+    /* FIXME: This should not be here */
+    QEMUSoundCard card;
+    SWVoiceOut *vp_bins_out;
+#endif
+#if DUMP_VP_BINS_MASK > 0
+    FILE *vp_bin_files[NUM_MIXBINS];
+#endif
 
 } MCPXAPUState;
 
@@ -802,12 +823,56 @@ static const MemoryRegionOps ep_ops = {
     .write = ep_write,
 };
 
-/* TODO: this should be on a thread so it waits on the voice lock */
-static void se_frame(void *opaque)
+#if (PLAYBACK_VP_BINS_MASK > 0) || (DUMP_VP_BINS_MASK > 0)
+static void route_vs_bins(MCPXAPUState *d,
+                          int32_t mixbin[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME])
 {
-    MCPXAPUState *d = opaque;
-    timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
-    MCPX_DPRINTF("mcpx frame ping\n");
+
+#if DUMP_VP_BINS_MASK > 0
+    for (int i = 0; i < NUM_MIXBINS; i++) {
+        if (d->vp_bin_files[i] == NULL) {
+            continue;
+        }
+        fwrite(&mixbin[i][0], 1, sizeof(mixbin[i]), d->vp_bin_files[i]);
+    }
+#endif
+
+#if PLAYBACK_VP_BINS_MASK > 0
+    /* Output will be S32 mono; mix this now */
+    int32_t mixed[NUM_SAMPLES_PER_FRAME] = { 0 };
+    for (int i = 0; i < NUM_MIXBINS; i++) {
+        if (PLAYBACK_VP_BINS_MASK & (1 << i)) {
+            for (int j = 0; j < NUM_SAMPLES_PER_FRAME; j++) {
+                mixed[j] += mixbin[i][j] << 8;
+            }
+        }
+    }
+
+    /* Write frame to audio output */
+    int n = AUD_write(d->vp_bins_out, mixed, sizeof(mixed));
+    if (n < sizeof(mixed)) {
+        printf("VP bins host buffer overrun\n");
+    }
+#endif
+
+}
+#endif
+
+static void process_voice(MCPXAPUState *d,
+                          int32_t mixbin[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME],
+                          uint32_t voice)
+{
+    /* FIXME: Implement */
+}
+
+/* This routine must run at 1500 Hz */
+static void se_frame(MCPXAPUState *d)
+{
+
+    /* Buffer for all MIXBINs for this frame */
+    int32_t mixbin[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME] = { 0 };
+
+    /* Process all voices, mixing each into the affected MIXBINs */
     int list;
     for (list = 0; list < 3; list++) {
         hwaddr top, current, next;
@@ -826,12 +891,43 @@ static void se_frame(void *opaque)
                     NV_PAVS_VOICE_PAR_STATE_ACTIVE_VOICE)) {
                 MCPX_DPRINTF("voice %d not active...!\n", d->regs[current]);
                 fe_method(d, SE2FE_IDLE_VOICE, d->regs[current]);
+            } else {
+                process_voice(d, mixbin, d->regs[current]);
             }
             MCPX_DPRINTF("next voice %d\n", d->regs[next]);
             d->regs[current] = d->regs[next];
         }
     }
 
+#if GENERATE_TONE
+    /* Add some audio to the mixbin for debugging.
+     * Signal is 1500 Hz sine wave, phase shifted by mixbin number.*/
+    for (unsigned int i = 0; i < NUM_MIXBINS; i++) {
+        for (unsigned int j = 0; j < NUM_SAMPLES_PER_FRAME; j++) {
+            /* Avoid multiple of 1.0 / NUM_SAMPLES_PER_FRAME for phase shift,
+             * or waves cancel out */
+            float offset = j / (float)NUM_SAMPLES_PER_FRAME -
+                           i / (float)(NUM_SAMPLES_PER_FRAME + 1);
+            float wave = sinf(offset * M_PI * 2.0f);
+            mixbin[i][j] = wave * 0x7FFFFF;
+        }
+    }
+#endif
+
+    /* Write VP results to the GP DSP MIXBUF */
+    for (unsigned int i = 0; i < NUM_MIXBINS; i++) {
+        for (unsigned int j = 0; j < NUM_SAMPLES_PER_FRAME; j++) {
+            dsp_write_memory(d->gp.dsp, 'X', 0x001400 + i * 0x20 + j,
+                             mixbin[i][j] & 0xFFFFFF);
+        }
+    }
+
+#if (PLAYBACK_VP_BINS_MASK > 0) || (DUMP_VP_BINS_MASK > 0)
+    /* For debugging purposes we will route the VP bins to our own outputs */
+    route_vs_bins(d, mixbin);
+#endif
+
+    /* Kickoff DSP processing */
     if ((d->gp.regs[NV_PAPU_GPRST] & NV_PAPU_GPRST_GPRST)
         && (d->gp.regs[NV_PAPU_GPRST] & NV_PAPU_GPRST_GPDSPRST)) {
         dsp_start_frame(d->gp.dsp);
@@ -839,14 +935,23 @@ static void se_frame(void *opaque)
         // hax
         dsp_run(d->gp.dsp, 1000);
     }
+
     if ((d->ep.regs[NV_PAPU_EPRST] & NV_PAPU_GPRST_GPRST)
         && (d->ep.regs[NV_PAPU_EPRST] & NV_PAPU_GPRST_GPDSPRST)) {
         dsp_start_frame(d->ep.dsp);
 
         // hax
-        // dsp_run(d->ep.dsp, 1000);
+        //dsp_run(d->ep.dsp, 1000);
     }
+
 }
+
+#if PLAYBACK_VP_BINS_MASK > 0
+static void vp_bins_out_callback(void *opaque, int free)
+{
+    printf("VP bins host buffer ran out, %d free bytes\n", free);
+}
+#endif
 
 static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
 {
@@ -875,6 +980,38 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
     d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
     d->gp.dsp = dsp_init(d, gp_scratch_rw, gp_fifo_rw);
     d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
+
+
+#if PLAYBACK_VP_BINS_MASK
+    /* FIXME: The APU is not actually an audio-card. The data should be sent to
+     *        speakers via ACI. However, we don't fully emulate GP / EP yet.
+     *        So we just route out the raw VP signals during development.
+     *        In the future, this code can be removed. */
+
+    AUD_register_card("MCPX APU", &d->card);
+#endif
+
+#if PLAYBACK_VP_BINS_MASK > 0
+    struct audsettings vp_bins_as = { 48000, 1, AUD_FMT_S32, 0 };
+    d->vp_bins_out = AUD_open_out(&d->card,
+                                  d->vp_bins_out,
+                                  "mcpx-apu.vp_bins", d,
+                                  vp_bins_out_callback,
+                                  &vp_bins_as);
+//    AUD_set_active_out(d->vp_bins_out, 1); //FIXME: Why does this hang GTK UI?
+#endif
+#if DUMP_VP_BINS_MASK > 0
+    for (unsigned int i = 0; i < NUM_MIXBINS; i++) {
+        if (DUMP_VP_BINS_MASK & (1 << i)) {
+            char path[32];
+            sprintf(path, "vp-bin-%d.bin", i);
+            d->vp_bin_files[i] = fopen(path, "wb");
+        } else {
+            d->vp_bin_files[i] = NULL;
+        }
+    }
+#endif
+
 }
 
 static void mcpx_apu_class_init(ObjectClass *klass, void *data)
