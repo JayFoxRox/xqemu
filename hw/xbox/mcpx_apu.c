@@ -194,6 +194,10 @@ static const struct {
 #define PLAYBACK_VP_BINS_MASK     0x00000000 /* 32-bits, 1 bit per bin */
 #define DUMP_VP_BINS_MASK         0x00000000 /* 32-bits, 1 bit per bin */
 
+/* Hacks to enable GP audio output by making some assumptions about Xbox */
+#define PLAYBACK_XBOX_DS_GP       1
+#define DUMP_XBOX_DS_GP           0
+
 typedef struct MCPXAPUState {
     PCIDevice dev;
 
@@ -228,13 +232,26 @@ typedef struct MCPXAPUState {
 
     uint32_t regs[0x20000];
 
-#if PLAYBACK_VP_BINS_MASK > 0
+#if (PLAYBACK_VP_BINS_MASK > 0) || PLAYBACK_XBOX_DS_GP
     /* FIXME: This should not be here */
     QEMUSoundCard card;
+#endif
+
+#if PLAYBACK_VP_BINS_MASK > 0
     SWVoiceOut *vp_bins_out;
 #endif
 #if DUMP_VP_BINS_MASK > 0
     FILE *vp_bin_files[NUM_MIXBINS];
+#endif
+
+#if PLAYBACK_XBOX_DS_GP || DUMP_XBOX_DS_GP
+    unsigned int xbox_ds_gp_offset;
+#endif
+#if PLAYBACK_XBOX_DS_GP
+    SWVoiceOut *xbox_ds_gp_out;
+#endif
+#if DUMP_XBOX_DS_GP
+    FILE *xbox_ds_gp_files[6];
 #endif
 
 } MCPXAPUState;
@@ -858,6 +875,66 @@ static void route_vs_bins(MCPXAPUState *d,
 }
 #endif
 
+#if PLAYBACK_XBOX_DS_GP || DUMP_XBOX_DS_GP
+static void route_xbox_ds_gp(MCPXAPUState *d)
+{
+
+    /* Read 5.1 GP output mix from DSP scratch space where Xbox DS keeps it */
+    int32_t samples[6][NUM_SAMPLES_PER_FRAME];
+    for (unsigned int i = 0; i < 6; i++) {
+        /* FIXME: Endianess of samples */
+        gp_scratch_rw(d, (uint8_t *)samples[i],
+                      0x8000 + i * 0x800 + d->xbox_ds_gp_offset,
+                      NUM_SAMPLES_PER_FRAME * 4, 0);
+    }
+
+/* FIXME: Must be skipped until we do DSP DMA buffer-offset writeback */
+#if 0
+    /* Advance in buffer for next frame.
+     * Each frame is 32 * 4 bytes, and each channel contains 16 frames.
+     * So each channel is 32 * 4 * 16 = 0x800 bytes.
+     * Each frame will advance read/write cursor by 32 * 4 byte.
+     * We don't really care about audio latency here, it will be at most 16
+     * frames. */
+    d->xbox_ds_gp_offset += NUM_SAMPLES_PER_FRAME * 4;
+    d->xbox_ds_gp_offset %= 0x800;
+#endif
+
+#if DUMP_XBOX_DS_GP
+    for (int i = 0; i < 6; i++) {
+        if (d->xbox_ds_gp_files[i] == NULL) {
+            continue;
+        }
+        fwrite(&samples[i][0], 1, sizeof(samples[i]), d->xbox_ds_gp_files[i]);
+    }
+#endif
+
+#if PLAYBACK_XBOX_DS_GP
+    /* Downmix 5.1 to stereo (actually 5.0 as LFE is dropped in downmix).
+     * Similar to what EP would do, so this allows to skip EP emulation. */
+    int32_t stereo_samples[NUM_SAMPLES_PER_FRAME][2];
+    for (int i = 0; i < NUM_SAMPLES_PER_FRAME; i++) {
+        int32_t front_left = samples[0][i];
+        int32_t front_right = samples[1][i];
+        int32_t front_center = samples[2][i];
+        /* int32_t lfe = samples[3][i]; */
+        int32_t back_left = samples[4][i];
+        int32_t back_right = samples[5][i];
+
+        stereo_samples[i][0] = (front_left + front_center / 2 + back_left) << 8;
+        stereo_samples[i][1] = (front_right + front_center / 2 + back_right) << 8;
+    }
+
+    /* Write frame to audio output */
+    int n = AUD_write(d->xbox_ds_gp_out, stereo_samples, sizeof(stereo_samples));
+    if (n < sizeof(stereo_samples)) {
+        printf("Xbox DirectSound GP host buffer overrun\n");
+    }
+#endif
+
+}
+#endif
+
 static void process_voice(MCPXAPUState *d,
                           int32_t mixbin[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME],
                           uint32_t voice)
@@ -934,6 +1011,11 @@ static void se_frame(MCPXAPUState *d)
 
         // hax
         dsp_run(d->gp.dsp, 1000);
+
+#if PLAYBACK_XBOX_DS_GP || DUMP_XBOX_DS_GP
+        /* Route audio that Xbox DS GP wants to DMA to EP to our own outputs */
+        route_xbox_ds_gp(d);
+#endif
     }
 
     if ((d->ep.regs[NV_PAPU_EPRST] & NV_PAPU_GPRST_GPRST)
@@ -950,6 +1032,13 @@ static void se_frame(MCPXAPUState *d)
 static void vp_bins_out_callback(void *opaque, int free)
 {
     printf("VP bins host buffer ran out, %d free bytes\n", free);
+}
+#endif
+
+#if PLAYBACK_XBOX_DS_GP
+static void xbox_ds_gp_out_callback(void *opaque, int free)
+{
+    printf("Xbox DirectSound GP host buffer ran out, %d free bytes\n", free);
 }
 #endif
 
@@ -982,7 +1071,7 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
     d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
 
 
-#if PLAYBACK_VP_BINS_MASK
+#if PLAYBACK_VP_BINS_MASK || PLAYBACK_XBOX_DS_GP
     /* FIXME: The APU is not actually an audio-card. The data should be sent to
      *        speakers via ACI. However, we don't fully emulate GP / EP yet.
      *        So we just route out the raw VP signals during development.
@@ -1009,6 +1098,26 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
         } else {
             d->vp_bin_files[i] = NULL;
         }
+    }
+#endif
+
+#if PLAYBACK_XBOX_DS_GP || DUMP_XBOX_DS_GP
+    d->xbox_ds_gp_offset = 0;
+#endif
+#if PLAYBACK_XBOX_DS_GP
+    struct audsettings xbox_ds_gp_as = { 48000, 2, AUD_FMT_S32, 0 };
+    d->xbox_ds_gp_out = AUD_open_out(&d->card,
+                                             d->xbox_ds_gp_out,
+                                             "mcpx-apu.xbox_ds_gp", d,
+                                             xbox_ds_gp_out_callback,
+                                             &xbox_ds_gp_as);
+//    AUD_set_active_out(d->xbox_ds_gp_out, 1); //FIXME: Why does this hang GTK UI?
+#endif
+#if DUMP_XBOX_DS_GP
+    for (unsigned int i = 0; i < 6; i++) {
+        char path[32];
+        sprintf(path, "xbox-ds-gp-%d.bin", i);
+        d->xbox_ds_gp_files[i] = fopen(path, "wb");
     }
 #endif
 
