@@ -1028,6 +1028,36 @@ static void se_frame(MCPXAPUState *d)
 
 }
 
+/* TODO: this should be on a thread so it waits on the voice lock */
+static void process_all_se_frames(void *opaque)
+{
+    MCPXAPUState *d = opaque;
+    timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
+    MCPX_DPRINTF("mcpx frame ping\n");
+
+    static uint64_t last_ns = 0; /* FIXME: should be part of MCPXAPUState */
+    uint64_t current_ns = qemu_clock_get_ns(QEMU_CLOCK_REALTIME);
+
+    /* We output multiple frames, because timing of this routine is bad.
+     * It's 10000.0us, when it should be 666.66...us */
+    uint64_t elapsed_time = current_ns - last_ns;
+    uint64_t frame_time = 666666;
+    unsigned int frames = elapsed_time / frame_time;
+
+    unsigned int max_frames = 20;
+    if (frames > max_frames) {
+        frames = max_frames;
+    }
+
+    printf("Time passed: %" PRIu64 " ns\n", elapsed_time);
+    printf("Doing %d frames; %d samples; %d bytes\n", frames, frames * NUM_SAMPLES_PER_FRAME, frames * NUM_SAMPLES_PER_FRAME * 4);
+    last_ns = current_ns;
+
+    for (unsigned int frame = 0; frame < frames; frame++) {
+        se_frame(opaque);
+    }
+}
+
 #if PLAYBACK_VP_BINS_MASK > 0
 static void vp_bins_out_callback(void *opaque, int free)
 {
@@ -1066,7 +1096,7 @@ static void mcpx_apu_realize(PCIDevice *dev, Error **errp)
     pci_register_bar(&d->dev, 0, PCI_BASE_ADDRESS_SPACE_MEMORY, &d->mmio);
 
 
-    d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, se_frame, d);
+    d->se.frame_timer = timer_new_ms(QEMU_CLOCK_VIRTUAL, process_all_se_frames, d);
     d->gp.dsp = dsp_init(d, gp_scratch_rw, gp_fifo_rw);
     d->ep.dsp = dsp_init(d, ep_scratch_rw, ep_fifo_rw);
 
