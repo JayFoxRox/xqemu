@@ -450,8 +450,11 @@ static void add_stage_code(struct PixelShader *ps,
     if (output.muxsum_op == PS_COMBINEROUTPUT_AB_CD_SUM) {
         sum = qstring_from_fmt("(%s + %s)", qstring_get_str(ab), qstring_get_str(cd));
     } else {
-        sum = qstring_from_fmt("((r0.a >= 0.5) ? %s : %s)",
-                               qstring_get_str(cd), qstring_get_str(ab));
+        assert(ps->flags & PS_COMBINERCOUNT_MUX_MSB);
+        sum = qstring_from_fmt("mix(%s(%s), %s(%s), %s(r0.a >= 0.5))",
+                               caster, qstring_get_str(ab),
+                               caster, qstring_get_str(cd),
+                               is_alpha ? "bool" : "bvec3");
     }
 
     QString *sum_mapping = get_output(sum, output.mapping);
