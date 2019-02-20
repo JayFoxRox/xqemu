@@ -850,10 +850,10 @@ static void se_frame(void *opaque)
                     NV_PAVS_VOICE_PAR_STATE,
                     NV_PAVS_VOICE_PAR_STATE_ACTIVE_VOICE)) {
                 MCPX_DPRINTF("voice %d not active...!\n", d->regs[current]);
-                fe_method(d, SE2FE_IDLE_VOICE, d->regs[current]);
             } else {
                 process_voice(d, mixbins, d->regs[current]);
             }
+            fe_method(d, SE2FE_IDLE_VOICE, d->regs[current]);
             MCPX_DPRINTF("next voice %d\n", d->regs[next]);
             d->regs[current] = d->regs[next];
         }
