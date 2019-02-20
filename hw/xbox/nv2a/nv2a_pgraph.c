@@ -3579,11 +3579,13 @@ static void pgraph_bind_textures(NV2AState *d)
         default: assert(false); break;
         }
 
+#if 0
         /* Check for unsupported features */
         assert(!(filter & NV_PGRAPH_TEXFILTER0_ASIGNED));
         assert(!(filter & NV_PGRAPH_TEXFILTER0_RSIGNED));
         assert(!(filter & NV_PGRAPH_TEXFILTER0_GSIGNED));
         assert(!(filter & NV_PGRAPH_TEXFILTER0_BSIGNED));
+#endif
 
         glActiveTexture(GL_TEXTURE0 + i);
         if (!enabled) {
