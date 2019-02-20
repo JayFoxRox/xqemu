@@ -572,7 +572,11 @@ static void pgraph_method(NV2AState *d,
     } break; }
 
 
-    case NV_KELVIN_PRIMITIVE: { switch (method) {
+    case NV_KELVIN_PRIMITIVE: {
+
+printf("method: 0x%04X: 0x%08X\n", method, parameter);
+
+    switch (method) {
     case NV097_SET_OBJECT:
         kelvin->object_instance = parameter;
         break;

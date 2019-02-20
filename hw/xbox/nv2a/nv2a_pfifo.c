@@ -315,6 +315,8 @@ static void pfifo_run_pusher(NV2AState *d)
 
             // NV2A_DPRINTF("push %d 0x%x 0x%x - subch %d\n", put/4, method_entry, word, method_subchannel);
 
+printf("Moving 0x%08X / 0x%08X: 0x%04X = 0x%08X\n", dma_get_v, dma_put_v, method_entry, word);
+
             assert(put < 128*4 && (put%4) == 0);
             d->pfifo.regs[NV_PFIFO_CACHE1_METHOD + put*2] = method_entry;
             d->pfifo.regs[NV_PFIFO_CACHE1_DATA + put*2] = word;
