@@ -1,5 +1,5 @@
 /*
- * QEMU MCPX Audio Processing Unit implementation
+ * QEMU MCPX APU implementation
  *
  * Copyright (c) 2012 espes
  * Copyright (c) 2018-2019 Jannik Vogel

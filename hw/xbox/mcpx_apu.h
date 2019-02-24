@@ -1,5 +1,5 @@
 /*
- * QEMU Geforce NV2A implementation
+ * QEMU MCPX APU implementation
  *
  * Copyright (c) 2018 Jannik Vogel
  *
