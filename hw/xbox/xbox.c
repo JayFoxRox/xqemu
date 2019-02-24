@@ -47,7 +47,7 @@
 #include "hw/xbox/xbox_pci.h"
 #include "hw/xbox/smbus.h"
 #include "hw/xbox/nv2a/nv2a.h"
-#include "hw/xbox/mcpx_apu.h"
+#include "hw/xbox/mcpx_apu/mcpx_apu.h"
  
 #include "hw/xbox/xbox.h"
 

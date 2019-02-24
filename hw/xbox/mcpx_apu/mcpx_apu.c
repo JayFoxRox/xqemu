@@ -23,7 +23,7 @@
 #include "hw/i386/pc.h"
 #include "hw/pci/pci.h"
 #include "cpu.h"
-#include "hw/xbox/dsp/dsp.h"
+#include "hw/xbox/mcpx_apu/dsp/dsp.h"
 #include <math.h>
 
 #define NUM_SAMPLES_PER_FRAME 32
@@ -31,7 +31,7 @@
 
 #include "mcpx_apu_debug.h"
 
-#include "hw/xbox/mcpx_apu.h"
+#include "hw/xbox/mcpx_apu/mcpx_apu.h"
 
 #define NV_PAPU_ISTS                                     0x00001000
 #   define NV_PAPU_ISTS_GINTSTS                               (1 << 0)

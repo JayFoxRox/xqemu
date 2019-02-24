@@ -1,0 +1,3 @@
+obj-y += mcpx_apu.o
+
+obj-y += dsp/
