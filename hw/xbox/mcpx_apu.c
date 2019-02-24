@@ -29,6 +29,8 @@
 #define NUM_SAMPLES_PER_FRAME 32
 #define NUM_MIXBINS 32
 
+#include "mcpx_apu_debug.h"
+
 #include "hw/xbox/mcpx_apu.h"
 
 #define NV_PAPU_ISTS                                     0x00001000
@@ -181,16 +183,6 @@ static const struct {
         (v) |= ((val) << ctz32(mask)) & (mask);                      \
     } while (0)
 
-// #define MCPX_DEBUG
-#ifdef MCPX_DEBUG
-# define MCPX_DPRINTF(format, ...)       printf(format, ## __VA_ARGS__)
-#else
-# define MCPX_DPRINTF(format, ...)       do { } while (0)
-#endif
-
-/* More debug functionality */
-#define GENERATE_MIXBIN_BEEP      0
-
 typedef struct MCPXAPUState {
     PCIDevice dev;
 
@@ -262,11 +254,11 @@ static void update_irq(MCPXAPUState *d)
               & d->regs[NV_PAPU_IEN])) {
 
         d->regs[NV_PAPU_ISTS] |= NV_PAPU_ISTS_GINTSTS;
-        MCPX_DPRINTF("mcpx irq raise\n");
+        MCPX_APU_DPRINTF("mcpx irq raise\n");
         pci_irq_assert(&d->dev);
     } else {
         d->regs[NV_PAPU_ISTS] &= ~NV_PAPU_ISTS_GINTSTS;
-        MCPX_DPRINTF("mcpx irq lower\n");
+        MCPX_APU_DPRINTF("mcpx irq lower\n");
         pci_irq_deassert(&d->dev);
     }
 }
@@ -288,7 +280,7 @@ static uint64_t mcpx_apu_read(void *opaque,
         break;
     }
 
-    MCPX_DPRINTF("mcpx apu: read [0x%llx] -> 0x%llx\n", addr, r);
+    MCPX_APU_DPRINTF("mcpx apu: read [0x%llx] -> 0x%llx\n", addr, r);
     return r;
 }
 
@@ -297,7 +289,7 @@ static void mcpx_apu_write(void *opaque, hwaddr addr,
 {
     MCPXAPUState *d = opaque;
 
-    MCPX_DPRINTF("mcpx apu: [0x%llx] = 0x%llx\n", addr, val);
+    MCPX_APU_DPRINTF("mcpx apu: [0x%llx] = 0x%llx\n", addr, val);
 
     switch (addr) {
     case NV_PAPU_ISTS:
@@ -338,7 +330,7 @@ static const MemoryRegionOps mcpx_apu_mmio_ops = {
 static void fe_method(MCPXAPUState *d,
                       uint32_t method, uint32_t argument)
 {
-    MCPX_DPRINTF("mcpx fe_method 0x%x 0x%x\n", method, argument);
+    MCPX_APU_DPRINTF("mcpx fe_method 0x%x 0x%x\n", method, argument);
 
     //assert((d->regs[NV_PAPU_FECTL] & NV_PAPU_FECTL_FEMETHMODE) == 0);
 
@@ -422,7 +414,7 @@ static void fe_method(MCPXAPUState *d,
 static uint64_t vp_read(void *opaque,
                         hwaddr addr, unsigned int size)
 {
-    MCPX_DPRINTF("mcpx apu VP: read [0x%llx]\n", addr);
+    MCPX_APU_DPRINTF("mcpx apu VP: read [0x%llx]\n", addr);
     switch (addr) {
     case NV1BA0_PIO_FREE:
         /* we don't simulate the queue for now,
@@ -439,7 +431,7 @@ static void vp_write(void *opaque, hwaddr addr,
 {
     MCPXAPUState *d = opaque;
 
-    MCPX_DPRINTF("mcpx apu VP: [0x%llx] = 0x%llx\n", addr, val);
+    MCPX_APU_DPRINTF("mcpx apu VP: [0x%llx] = 0x%llx\n", addr, val);
 
     switch (addr) {
     case NV1BA0_PIO_SET_ANTECEDENT_VOICE:
@@ -540,7 +532,7 @@ static uint32_t circular_scatter_gather_rw(MCPXAPUState *d,
             bytes_to_copy = len;
         }
 
-        MCPX_DPRINTF("circular scatter gather %s in range 0x%x - 0x%x at 0x%x of length 0x%x / 0x%lx bytes\n",
+        MCPX_APU_DPRINTF("circular scatter gather %s in range 0x%x - 0x%x at 0x%x of length 0x%x / 0x%lx bytes\n",
             dir ? "write" : "read", base, end, cur, bytes_to_copy, len);
 
         assert((cur >= base) && ((cur + bytes_to_copy) <= end));
@@ -685,7 +677,7 @@ static uint64_t gp_read(void *opaque,
         r = d->gp.regs[addr];
         break;
     }
-    MCPX_DPRINTF("mcpx apu GP: read [0x%llx] -> 0x%llx\n", addr, r);
+    MCPX_APU_DPRINTF("mcpx apu GP: read [0x%llx] -> 0x%llx\n", addr, r);
     return r;
 }
 
@@ -697,7 +689,7 @@ static void gp_write(void *opaque, hwaddr addr,
     assert(size == 4);
     assert(addr % 4 == 0);
 
-    MCPX_DPRINTF("mcpx apu GP: [0x%llx] = 0x%llx\n", addr, val);
+    MCPX_APU_DPRINTF("mcpx apu GP: [0x%llx] = 0x%llx\n", addr, val);
 
     switch (addr) {
     case NV_PAPU_GPXMEM ... NV_PAPU_GPXMEM + 0x1000 * 4 - 1: {
@@ -766,7 +758,7 @@ static uint64_t ep_read(void *opaque,
         r = d->ep.regs[addr];
         break;
     }
-    MCPX_DPRINTF("mcpx apu EP: read [0x%llx] -> 0x%llx\n", addr, r);
+    MCPX_APU_DPRINTF("mcpx apu EP: read [0x%llx] -> 0x%llx\n", addr, r);
     return r;
 }
 
@@ -778,7 +770,7 @@ static void ep_write(void *opaque, hwaddr addr,
     assert(size == 4);
     assert(addr % 4 == 0);
 
-    MCPX_DPRINTF("mcpx apu EP: [0x%llx] = 0x%llx\n", addr, val);
+    MCPX_APU_DPRINTF("mcpx apu EP: [0x%llx] = 0x%llx\n", addr, val);
 
     switch (addr) {
     case NV_PAPU_EPXMEM ... NV_PAPU_EPXMEM + 0xC00 * 4 - 1: {
@@ -827,7 +819,7 @@ static void se_frame(void *opaque)
     int sample;
 
     timer_mod(d->se.frame_timer, qemu_clock_get_ms(QEMU_CLOCK_VIRTUAL) + 10);
-    MCPX_DPRINTF("mcpx frame ping\n");
+    MCPX_APU_DPRINTF("mcpx frame ping\n");
 
     /* Buffer for all mixbins for this frame */
     int32_t mixbins[NUM_MIXBINS][NUM_SAMPLES_PER_FRAME] = { 0 };
@@ -841,7 +833,7 @@ static void se_frame(void *opaque)
         next = voice_list_regs[list].next;
 
         d->regs[current] = d->regs[top];
-        MCPX_DPRINTF("list %d current voice %d\n", list, d->regs[current]);
+        MCPX_APU_DPRINTF("list %d current voice %d\n", list, d->regs[current]);
         while (d->regs[current] != 0xFFFF) {
             d->regs[next] = voice_get_mask(d, d->regs[current],
                 NV_PAVS_VOICE_TAR_PITCH_LINK,
@@ -849,12 +841,12 @@ static void se_frame(void *opaque)
             if (!voice_get_mask(d, d->regs[current],
                     NV_PAVS_VOICE_PAR_STATE,
                     NV_PAVS_VOICE_PAR_STATE_ACTIVE_VOICE)) {
-                MCPX_DPRINTF("voice %d not active...!\n", d->regs[current]);
+                MCPX_APU_DPRINTF("voice %d not active...!\n", d->regs[current]);
                 fe_method(d, SE2FE_IDLE_VOICE, d->regs[current]);
             } else {
                 process_voice(d, mixbins, d->regs[current]);
             }
-            MCPX_DPRINTF("next voice %d\n", d->regs[next]);
+            MCPX_APU_DPRINTF("next voice %d\n", d->regs[next]);
             d->regs[current] = d->regs[next];
         }
     }
