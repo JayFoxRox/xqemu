@@ -3564,8 +3564,8 @@ static const VMStateDescription vmstate_xhci_event = {
     .name = "xhci-event",
     .version_id = 1,
     .fields = (VMStateField[]) {
-        VMSTATE_UINT32(type,   XHCIEvent),
-        VMSTATE_UINT32(ccode,  XHCIEvent),
+        //VMSTATE_UINT32(type,   XHCIEvent),
+        //VMSTATE_UINT32(ccode,  XHCIEvent),
         VMSTATE_UINT64(ptr,    XHCIEvent),
         VMSTATE_UINT32(length, XHCIEvent),
         VMSTATE_UINT32(flags,  XHCIEvent),

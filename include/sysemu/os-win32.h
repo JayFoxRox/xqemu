@@ -30,7 +30,7 @@
 #include <windows.h>
 #include <ws2tcpip.h>
 
-#if defined(_WIN64)
+#if 0 // defined(_WIN64)
 /* On w64, setjmp is implemented by _setjmp which needs a second parameter.
  * If this parameter is NULL, longjump does no stack unwinding.
  * That is what we need for QEMU. Passing the value of register rsp (default)
