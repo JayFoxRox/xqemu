@@ -2782,6 +2782,16 @@ static void pgraph_shader_update_constants(PGRAPHState *pg,
         // char name[32];
         GLint loc;
 
+        /* Texture signedness */
+        loc = binding->tex_signed_loc[i];
+        if (loc != -1) {
+            uint32_t filter = pg->regs[NV_PGRAPH_TEXFILTER0 + i*4];
+            glUniform4i(loc, filter & NV_PGRAPH_TEXFILTER0_RSIGNED,
+                             filter & NV_PGRAPH_TEXFILTER0_GSIGNED,
+                             filter & NV_PGRAPH_TEXFILTER0_BSIGNED,
+                             filter & NV_PGRAPH_TEXFILTER0_ASIGNED);
+        }
+
         /* Bump luminance only during stages 1 - 3 */
         if (i > 0) {
             loc = binding->bump_mat_loc[i];
@@ -3575,12 +3585,6 @@ static void pgraph_bind_textures(NV2AState *d)
         case NV_PGRAPH_TEXPALETTE0_LENGTH_32: palette_length = 32; break;
         default: assert(false); break;
         }
-
-        /* Check for unsupported features */
-        assert(!(filter & NV_PGRAPH_TEXFILTER0_ASIGNED));
-        assert(!(filter & NV_PGRAPH_TEXFILTER0_RSIGNED));
-        assert(!(filter & NV_PGRAPH_TEXFILTER0_GSIGNED));
-        assert(!(filter & NV_PGRAPH_TEXFILTER0_BSIGNED));
 
         glActiveTexture(GL_TEXTURE0 + i);
         if (!enabled) {

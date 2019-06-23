@@ -946,6 +946,10 @@ ShaderBinding* generate_shaders(const ShaderState state)
         }
     }
     ret->alpha_ref_loc = glGetUniformLocation(program, "alphaRef");
+    for (i = 0; i < NV2A_MAX_TEXTURES; i++) {
+        snprintf(tmp, sizeof(tmp), "texSigned%d", i);
+        ret->tex_signed_loc[i] = glGetUniformLocation(program, tmp);
+    }
     for (i = 1; i < NV2A_MAX_TEXTURES; i++) {
         snprintf(tmp, sizeof(tmp), "bumpMat%d", i);
         ret->bump_mat_loc[i] = glGetUniformLocation(program, tmp);

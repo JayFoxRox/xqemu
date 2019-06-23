@@ -597,16 +597,22 @@ static QString* psh_convert(struct PixelShader *ps)
             }
             qstring_append_fmt(vars, "vec4 t%d = textureProj(texSamp%d, pT%d.xyw);\n",
                                i, i, i);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_PROJECT3D:
             sampler_type = "sampler3D";
             qstring_append_fmt(vars, "vec4 t%d = textureProj(texSamp%d, pT%d.xyzw);\n",
+                               i, i, i);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
                                i, i, i);
             break;
         case PS_TEXTUREMODES_CUBEMAP:
             sampler_type = "samplerCube";
             qstring_append_fmt(vars, "vec4 t%d = texture(texSamp%d, pT%d.xyz / pT%d.w);\n",
                                i, i, i, i);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_PASSTHRU:
             qstring_append_fmt(vars, "vec4 t%d = pT%d;\n", i, i);
@@ -629,6 +635,8 @@ static QString* psh_convert(struct PixelShader *ps)
             /* FIXME: Do bumpMat swizzle on CPU before upload */
             qstring_append_fmt(vars, "vec4 t%d = texture(texSamp%d, pT%d.xy + t%d.rg * mat2(bumpMat%d[0].xy,bumpMat%d[1].yx));\n",
                                i, i, i, ps->input_tex[i], i, i);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_BUMPENVMAP_LUM:
             qstring_append_fmt(preflight, "uniform float bumpScale%d;\n", i);
@@ -643,6 +651,8 @@ static QString* psh_convert(struct PixelShader *ps)
             /* FIXME: Do bumpMat swizzle on CPU before upload */
             qstring_append_fmt(vars, "vec4 t%d = texture(texSamp%d, pT%d.xy + t%d.rg * mat2(bumpMat%d[0].xy,bumpMat%d[1].yx));\n",
                                i, i, i, ps->input_tex[i], i, i);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_BRDF:
             qstring_append_fmt(vars, "vec4 t%d = vec4(0.0); /* PS_TEXTUREMODES_BRDF */\n",
@@ -684,12 +694,16 @@ static QString* psh_convert(struct PixelShader *ps)
             sampler_type = "sampler2D";
             qstring_append_fmt(vars, "vec4 t%d = texture(texSamp%d, t%d.ar);\n",
                                i, i, ps->input_tex[i]);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_DPNDNT_GB:
             assert(!ps->state.rect_tex[i]);
             sampler_type = "sampler2D";
             qstring_append_fmt(vars, "vec4 t%d = texture(texSamp%d, t%d.gb);\n",
                                i, i, ps->input_tex[i]);
+            qstring_append_fmt(vars, "t%d = signed_texture(t%d, texSigned%d);\n",
+                               i, i, i);
             break;
         case PS_TEXTUREMODES_DOTPRODUCT:
             qstring_append_fmt(vars, "vec4 t%d = vec4(dot(pT%d.xyz, t%d.rgb));\n",
@@ -708,6 +722,7 @@ static QString* psh_convert(struct PixelShader *ps)
         
         if (sampler_type != NULL) {
             qstring_append_fmt(preflight, "uniform %s texSamp%d;\n", sampler_type, i);
+            qstring_append_fmt(preflight, "uniform bvec4 texSigned%d;\n", i);
 
             /* As this means a texture fetch does happen, do alphakill */
             if (ps->state.alphakill[i]) {
@@ -770,6 +785,13 @@ static QString* psh_convert(struct PixelShader *ps)
     QString *final = qstring_new();
     qstring_append(final, "#version 330\n\n");
     qstring_append(final, qstring_get_str(preflight));
+    qstring_append(final, "\n");
+    qstring_append(final, "vec4 signed_texture(vec4 sample, bvec4 mask) {\n");
+    qstring_append(final, "  vec4 bias = mix(vec4(0.0), vec4(-2.0), greaterThanEqual(sample, vec4(0.5)));\n");
+    qstring_append(final, "  vec4 signed_sample = sample * 2.0 + bias;\n");
+    qstring_append(final, "  return mix(sample, signed_sample, mask);\n");
+    qstring_append(final, "}\n");
+    qstring_append(final, "\n");
     qstring_append(final, "void main() {\n");
     qstring_append(final, qstring_get_str(clip));
     qstring_append(final, qstring_get_str(vars));
