@@ -787,8 +787,7 @@ static QString* psh_convert(struct PixelShader *ps)
     qstring_append(final, qstring_get_str(preflight));
     qstring_append(final, "\n");
     qstring_append(final, "vec4 signed_texture(vec4 sample, bvec4 mask) {\n");
-    qstring_append(final, "  vec4 bias = mix(vec4(0.0), vec4(-2.0), greaterThanEqual(sample, vec4(0.5)));\n");
-    qstring_append(final, "  vec4 signed_sample = sample * 2.0 + bias;\n");
+    qstring_append(final, "  vec4 signed_sample = sample * 2.0 - 1.0;\n");
     qstring_append(final, "  return mix(sample, signed_sample, mask);\n");
     qstring_append(final, "}\n");
     qstring_append(final, "\n");

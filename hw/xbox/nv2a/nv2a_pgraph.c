@@ -3752,6 +3752,10 @@ static void pgraph_bind_textures(NV2AState *d)
             .min_mipmap_level = min_mipmap_level,
             .max_mipmap_level = max_mipmap_level,
             .pitch = pitch,
+            .signed_rgba[0] = filter & NV_PGRAPH_TEXFILTER0_RSIGNED,
+            .signed_rgba[1] = filter & NV_PGRAPH_TEXFILTER0_GSIGNED,
+            .signed_rgba[2] = filter & NV_PGRAPH_TEXFILTER0_BSIGNED,
+            .signed_rgba[3] = filter & NV_PGRAPH_TEXFILTER0_ASIGNED,
         };
 
 #ifdef USE_TEXTURE_CACHE
@@ -4084,6 +4088,47 @@ static uint8_t* convert_texture_data(const TextureShape s,
                                      unsigned int row_pitch,
                                      unsigned int slice_pitch)
 {
+    //FIXME: Handle all formats
+    if (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8) {
+
+      //FIXME: Extend for other formats in the main texture table
+      uint32_t xor_mask_parts[] = {
+        0x00800000,
+        0x00008000,
+        0x00000080,
+        0x80000000
+      };
+
+      // Collect XOR mask bits
+      uint32_t xor_mask = 0x0;
+      for(int i = 0; i < 4; i++) {
+        if (s.signed_rgba[i]) {
+          xor_mask |= xor_mask_parts[i];
+        }
+      }
+
+      printf("Converting texture using 0x%08X\n", xor_mask);
+
+      // Early out if no conversion is necessary
+      if (xor_mask == 0) {
+        return NULL;
+      }
+
+      //FIXME: Use uint64 as XOR mask to handle larger batches
+
+      assert(depth == 1); /* FIXME */
+      uint8_t* converted_data = (uint8_t*)g_malloc(width * height * 4);
+      int x, y;
+      for (y = 0; y < height; y++) {
+          for (x = 0; x < width; x++) {
+              uint32_t color = *(uint32_t*)(data + y * row_pitch + x * 4);
+              uint32_t* pixel = converted_data + y * row_pitch + x * 4;
+              *pixel = color ^ xor_mask;
+          }
+      }
+      return converted_data;
+    }
+
     if (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_SZ_I8_A8R8G8B8) {
         assert(depth == 1); /* FIXME */
         uint8_t* converted_data = (uint8_t*)g_malloc(width * height * 4);
