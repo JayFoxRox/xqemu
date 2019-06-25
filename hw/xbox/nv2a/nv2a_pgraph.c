@@ -187,6 +187,13 @@ static const ColorFormatInfo kelvin_color_format_map[66] = {
         {1, true, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_RED, GL_RED, GL_RED, GL_ONE}},
 
+    [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8B8] =
+        {2, true, GL_RG8, GL_RG, GL_UNSIGNED_BYTE,
+         {GL_GREEN, GL_RED, GL_RED, GL_ONE}}, //FIXME: Unsure.. colors too weak?
+    [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_G8B8] =
+        {2, true, GL_RG8, GL_RG, GL_UNSIGNED_BYTE,
+         {GL_RED, GL_GREEN, GL_RED, GL_ONE}}, //FIXME: Unsure.. colors too weak?
+
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8] =
         {1, false, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_ONE, GL_ONE, GL_ONE, GL_RED}},
@@ -4090,7 +4097,9 @@ static uint8_t* convert_texture_data(const TextureShape s,
 {
     //FIXME: Handle all formats
     if ((s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8) ||
-        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8)) {
+        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8) ||
+        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8B8) ||
+        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_G8B8)) {
 
       // Get texture format information
       ColorFormatInfo f = kelvin_color_format_map[s.color_format];
@@ -4098,17 +4107,37 @@ static uint8_t* convert_texture_data(const TextureShape s,
       //FIXME: Extend for other formats in the main texture table
       uint32_t gl_xor_mask_parts[] = {
 
+#if 0
         //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8
-        //0x00800000,
-        //0x00008000,
-        //0x00000080,
-        //0x80000000
-       
+        0x00800000,
+        0x00008000,
+        0x00000080,
+        0x80000000
+#endif     
+  
+#if 0
         //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8
         0x0080, // GL_RED: Y8
         0x8000, // GL_GREEN: A8
         0x0000,
         0x0000
+#endif
+
+#if 1
+        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8B8
+        0x0080, // GL_RED: B8
+        0x8000, // GL_GREEN: R8
+        0x0000,
+        0x0000
+#endif
+
+#if 0
+        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_G8B8
+        0x0080, // GL_RED: B8
+        0x8000, // GL_GREEN: G8
+        0x0000,
+        0x0000
+#endif
       };
 
       // Collect XOR mask bits
@@ -4125,11 +4154,11 @@ static uint8_t* convert_texture_data(const TextureShape s,
 
           //FIXME: What happens with these?
           if (gl_swizzle == GL_ZERO) {
-            assert(false);
+            //assert(!s.signed_rgba[i]);
             continue;
           }
           if (gl_swizzle == GL_ONE) {
-            assert(false);
+            //assert(!s.signed_rgba[i]);
             continue;
           }
 
@@ -4204,7 +4233,7 @@ s.signed_rgba[0], s.signed_rgba[1], s.signed_rgba[2], s.signed_rgba[3]);
       for (y = 0; y < height; y++) {
           for (x = 0; x < width; x++) {
               uint32_t color = *(uint32_t*)(data + y * row_pitch + x * 4);
-              uint32_t* pixel = converted_data + y * width * 4 + x * 4;
+              uint32_t* pixel = (uint32_t*)(converted_data + y * width * 4 + x * 4);
               *pixel = color ^ gl_xor_mask;
           }
       }
