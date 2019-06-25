@@ -4089,29 +4089,111 @@ static uint8_t* convert_texture_data(const TextureShape s,
                                      unsigned int slice_pitch)
 {
     //FIXME: Handle all formats
-    if (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8) {
+    if ((s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8) ||
+        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8)) {
+
+      // Get texture format information
+      ColorFormatInfo f = kelvin_color_format_map[s.color_format];
 
       //FIXME: Extend for other formats in the main texture table
-      uint32_t xor_mask_parts[] = {
-        0x00800000,
-        0x00008000,
-        0x00000080,
-        0x80000000
+      uint32_t gl_xor_mask_parts[] = {
+
+        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8
+        //0x00800000,
+        //0x00008000,
+        //0x00000080,
+        //0x80000000
+       
+        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8
+        0x0080, // GL_RED: Y8
+        0x8000, // GL_GREEN: A8
+        0x0000,
+        0x0000
       };
 
       // Collect XOR mask bits
-      uint32_t xor_mask = 0x0;
+      uint32_t gl_xor_mask = 0;
+      bool gl_component_used[4] = { false, false, false, false };
+      bool gl_component_signed[4] = { false, false, false, false };
       for(int i = 0; i < 4; i++) {
-        if (s.signed_rgba[i]) {
-          xor_mask |= xor_mask_parts[i];
+
+        // Use GL swizzle mask to figure out which GL component to use
+        int j;
+        if (f.gl_swizzle_mask[0] != 0 || f.gl_swizzle_mask[1] != 0
+            || f.gl_swizzle_mask[2] != 0 || f.gl_swizzle_mask[3] != 0) {
+          GLenum gl_swizzle = f.gl_swizzle_mask[i];
+
+          //FIXME: What happens with these?
+          if (gl_swizzle == GL_ZERO) {
+            assert(false);
+            continue;
+          }
+          if (gl_swizzle == GL_ONE) {
+            assert(false);
+            continue;
+          }
+
+          if (gl_swizzle == GL_RED) {
+            j = 0;
+          } else if (gl_swizzle == GL_GREEN) {
+            j = 1;
+          } else if (gl_swizzle == GL_BLUE) {
+            j = 2;
+          } else if (gl_swizzle == GL_ALPHA) {
+            j = 3;
+          } else {
+            assert(false);
+          }
+        } else {
+          j = i;
         }
+
+        // Skip already handled components
+        if (gl_component_used[j]) {
+
+          // We can't always reuse the same component.
+          //
+          // Imagine Xbox Y8 [where Xbox R8=G8=B8], which is using GL R8.
+          // We can't independently XOR Xbox R8, G8, B8 as they share GL R8.
+          // So if a component is already used, only accept shared signedness.
+          // 
+          // However, this is probably a niche case, so we don't handle it.
+          printf("Re-used component in format 0x%X: Xbox %d (signed: %d) = GL %d (signed: %d)\n", s.color_format, i, s.signed_rgba[i], j, gl_component_signed[j]);
+          assert(gl_component_signed[j] == s.signed_rgba[i]);
+
+          continue;
+        }
+
+        // Mark component as used
+        gl_component_used[j] = true;
+
+        // Apply XOR mask for signedness, and mark as signed
+        if (s.signed_rgba[i]) {
+          gl_xor_mask |= gl_xor_mask_parts[j];
+          gl_component_signed[j] = true;
+        }
+
       }
 
-      printf("Converting texture using 0x%08X\n", xor_mask);
+      printf("Converting texture using 0x%X xbox-signed: %d%d%d%d\n", gl_xor_mask,
+s.signed_rgba[0], s.signed_rgba[1], s.signed_rgba[2], s.signed_rgba[3]);
 
       // Early out if no conversion is necessary
-      if (xor_mask == 0) {
+      if (gl_xor_mask == 0) {
         return NULL;
+      }
+
+      // Convert XOR mask to be re-usable for 8 or 16bpp
+      assert(width % 4 == 0);
+      if (f.bytes_per_pixel == 1) {
+        gl_xor_mask = (gl_xor_mask << 8) | gl_xor_mask;
+        gl_xor_mask = (gl_xor_mask << 16) | gl_xor_mask;
+        width /= 4;
+      } else if (f.bytes_per_pixel == 2) {
+        gl_xor_mask = (gl_xor_mask << 16) | gl_xor_mask;
+        width /= 2;
+      } else {
+        assert(false);
       }
 
       //FIXME: Use uint64 as XOR mask to handle larger batches
@@ -4122,8 +4204,8 @@ static uint8_t* convert_texture_data(const TextureShape s,
       for (y = 0; y < height; y++) {
           for (x = 0; x < width; x++) {
               uint32_t color = *(uint32_t*)(data + y * row_pitch + x * 4);
-              uint32_t* pixel = converted_data + y * row_pitch + x * 4;
-              *pixel = color ^ xor_mask;
+              uint32_t* pixel = converted_data + y * width * 4 + x * 4;
+              *pixel = color ^ gl_xor_mask;
           }
       }
       return converted_data;
