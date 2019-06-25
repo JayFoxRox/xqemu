@@ -4086,6 +4086,38 @@ static void convert_yuy2_to_rgb(const uint8_t *line, unsigned int ix,
     *b = cliptobyte((298 * c + 516 * d + 128) >> 8);
 }
 
+static const uint32_t* get_gl_sign_bits(GLenum gl_format, GLenum gl_type) {
+  if ((gl_format == GL_BGRA) && (gl_type == GL_UNSIGNED_INT_8_8_8_8_REV)) {
+    static const uint32_t sign_bits[4] = { 1 << 23, 1 << 15, 1 << 7, 1 << 31 };
+    return sign_bits;
+  } else if ((gl_format == GL_BGRA) && (gl_type == GL_UNSIGNED_SHORT_1_5_5_5_REV)) {
+    static const uint32_t sign_bits[4] = { 1 << 14, 1 << 9, 1 << 4, 1 << 15 };
+    return sign_bits;
+  } else if ((gl_format == GL_BGRA) && (gl_type == GL_UNSIGNED_SHORT_4_4_4_4_REV)) {
+    static const uint32_t sign_bits[4] = { 1 << 11, 1 << 7, 1 << 3, 1 << 15 };
+    return sign_bits;
+  } else if ((gl_format == GL_RED) && (gl_type == GL_UNSIGNED_BYTE)) {
+    static const uint32_t sign_bits[4] = { 1 << 7, 0, 0, 0 };
+    return sign_bits;
+  } else if ((gl_format == GL_RED) && (gl_type == GL_UNSIGNED_SHORT)) {
+    static const uint32_t sign_bits[4] = { 1 << 15, 0, 0, 0 };
+    return sign_bits;
+  } else if ((gl_format == GL_RGB) && (gl_type == GL_UNSIGNED_SHORT_5_6_5)) {
+    static const uint32_t sign_bits[4] = { 1 << 4, 1 << 10, 1 << 15, 0 };
+    return sign_bits;
+  } else if ((gl_format == GL_RG) && (gl_type == GL_UNSIGNED_BYTE)) {
+    static const uint32_t sign_bits[4] = { 1 << 7, 1 << 15, 0, 0 };
+    return sign_bits;
+  } else if ((gl_format == GL_DEPTH_COMPONENT) && (gl_type == GL_UNSIGNED_SHORT)) {
+    //FIXME: How to handle this?
+    static const uint32_t sign_bits[4] = { 0, 0, 0, 0 };
+    return sign_bits;
+  } else {
+    assert(false);
+  }
+  return NULL;
+}
+
 static uint8_t* convert_texture_data(const TextureShape s,
                                      const uint8_t *data,
                                      const uint8_t *palette_data,
@@ -4096,49 +4128,14 @@ static uint8_t* convert_texture_data(const TextureShape s,
                                      unsigned int slice_pitch)
 {
     //FIXME: Handle all formats
-    if ((s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8) ||
-        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8) ||
-        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8B8) ||
-        (s.color_format == NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_G8B8)) {
+    if (true) {
 
       // Get texture format information
       ColorFormatInfo f = kelvin_color_format_map[s.color_format];
 
       //FIXME: Extend for other formats in the main texture table
-      uint32_t gl_xor_mask_parts[] = {
-
-#if 0
-        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8
-        0x00800000,
-        0x00008000,
-        0x00000080,
-        0x80000000
-#endif     
-  
-#if 0
-        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8Y8
-        0x0080, // GL_RED: Y8
-        0x8000, // GL_GREEN: A8
-        0x0000,
-        0x0000
-#endif
-
-#if 1
-        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8B8
-        0x0080, // GL_RED: B8
-        0x8000, // GL_GREEN: R8
-        0x0000,
-        0x0000
-#endif
-
-#if 0
-        //FIXME: For NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_G8B8
-        0x0080, // GL_RED: B8
-        0x8000, // GL_GREEN: G8
-        0x0000,
-        0x0000
-#endif
-      };
+      printf("Converting format: 0x%X\n", s.color_format);
+      const uint32_t* gl_xor_mask_parts = get_gl_sign_bits(f.gl_format, f.gl_type);
 
       // Collect XOR mask bits
       uint32_t gl_xor_mask = 0;
