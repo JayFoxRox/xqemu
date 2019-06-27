@@ -155,34 +155,47 @@ static const ColorFormatInfo kelvin_color_format_map[66] = {
         {1, false, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_RED, GL_RED, GL_RED, GL_RED}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A1R5G5B5] =
-        {2, false, GL_RGB5_A1, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV},
+        {2, false, GL_RGB5_A1, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X1R5G5B5] =
-        {2, false, GL_RGB5, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV},
+        {2, false, GL_RGB5, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A4R4G4B4] =
-        {2, false, GL_RGBA4, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV},
+        {2, false, GL_RGBA4, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R5G6B5] =
-        {2, false, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
+        {2, false, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8R8G8B8] =
-        {4, false, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, false, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_X8R8G8B8] =
-        {4, false, GL_RGB8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, false, GL_RGB8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
 
     /* paletted texture */
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_I8_A8R8G8B8] =
-        {1, false, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {1, false, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
 
     [NV097_SET_TEXTURE_FORMAT_COLOR_L_DXT1_A1R5G5B5] =
-        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, 0, GL_RGBA},
+        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT1_EXT, 0, GL_RGBA,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_L_DXT23_A8R8G8B8] =
-        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, 0, GL_RGBA},
+        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT3_EXT, 0, GL_RGBA,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_L_DXT45_A8R8G8B8] =
-        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, 0, GL_RGBA},
+        {4, false, GL_COMPRESSED_RGBA_S3TC_DXT5_EXT, 0, GL_RGBA,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A1R5G5B5] =
-        {2, true, GL_RGB5_A1, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV},
+        {2, true, GL_RGB5_A1, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R5G6B5] =
-        {2, true, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5},
+        {2, true, GL_RGB565, GL_RGB, GL_UNSIGNED_SHORT_5_6_5,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8R8G8B8] =
-        {4, true, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, true, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_Y8] =
         {1, true, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_RED, GL_RED, GL_RED, GL_ONE}},
@@ -197,11 +210,14 @@ static const ColorFormatInfo kelvin_color_format_map[66] = {
         {1, true, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_RED, GL_RED, GL_RED, GL_RED}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X1R5G5B5] =
-        {2, true, GL_RGB5, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV},
+        {2, true, GL_RGB5, GL_BGRA, GL_UNSIGNED_SHORT_1_5_5_5_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A4R4G4B4] =
-        {2, true, GL_RGBA4, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV},
+        {2, true, GL_RGBA4, GL_BGRA, GL_UNSIGNED_SHORT_4_4_4_4_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_X8R8G8B8] =
-        {4, true, GL_RGB8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, true, GL_RGB8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8] =
         {1, true, GL_R8, GL_RED, GL_UNSIGNED_BYTE,
          {GL_ONE, GL_ONE, GL_ONE, GL_RED}},
@@ -210,7 +226,8 @@ static const ColorFormatInfo kelvin_color_format_map[66] = {
          {GL_RED, GL_RED, GL_RED, GL_GREEN}},
 
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R6G5B5] =
-        {2, false, GL_RGB8_SNORM, GL_RGB, GL_BYTE}, /* FIXME: This might be signed */
+        {2, false, GL_RGB8_SNORM, GL_RGB, GL_BYTE, /* FIXME: This might be signed */
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_G8B8] =
         {2, false, GL_RG8_SNORM, GL_RG, GL_BYTE, /* FIXME: This might be signed */
          {GL_ZERO, GL_RED, GL_GREEN, GL_ONE}},
@@ -221,26 +238,34 @@ static const ColorFormatInfo kelvin_color_format_map[66] = {
 
     /* TODO: format conversion */
     [NV097_SET_TEXTURE_FORMAT_COLOR_LC_IMAGE_CR8YB8CB8YA8] =
-        {2, true, GL_RGBA8,  GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {2, true, GL_RGBA8,  GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_DEPTH_X8_Y24_FIXED] =
-        {4, true, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8},
+        {4, true, GL_DEPTH24_STENCIL8, GL_DEPTH_STENCIL, GL_UNSIGNED_INT_24_8,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}}, /* FIXME: How to swizzle this? */
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_DEPTH_Y16_FIXED] =
-        {2, true, GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT},
+        {2, true, GL_DEPTH_COMPONENT16, GL_DEPTH_COMPONENT, GL_UNSIGNED_SHORT,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}}, /* FIXME: How to swizzle this? */
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_Y16] =
         {2, true, GL_R16, GL_RED, GL_UNSIGNED_SHORT,
          {GL_RED, GL_RED, GL_RED, GL_ONE}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_A8B8G8R8] =
-        {4, false, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, false, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
 
     [NV097_SET_TEXTURE_FORMAT_COLOR_SZ_R8G8B8A8] =
-        {4, false, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8},
+        {4, false, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
 
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_A8B8G8R8] =
-        {4, true, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV},
+        {4, true, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8_REV,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_B8G8R8A8] =
-        {4, true, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8},
+        {4, true, GL_RGBA8, GL_BGRA, GL_UNSIGNED_INT_8_8_8_8,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
     [NV097_SET_TEXTURE_FORMAT_COLOR_LU_IMAGE_R8G8B8A8] =
-        {4, true, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8}
+        {4, true, GL_RGBA8, GL_RGBA, GL_UNSIGNED_INT_8_8_8_8,
+         {GL_RED, GL_GREEN, GL_BLUE, GL_ALPHA}},
 };
 
 typedef struct SurfaceColorFormatInfo {
@@ -4355,11 +4380,8 @@ static TextureBinding* generate_texture(const TextureShape s,
             s.levels - 1);
     }
 
-    if (f.gl_swizzle_mask[0] != 0 || f.gl_swizzle_mask[1] != 0
-        || f.gl_swizzle_mask[2] != 0 || f.gl_swizzle_mask[3] != 0) {
-        glTexParameteriv(gl_target, GL_TEXTURE_SWIZZLE_RGBA,
-                         (const GLint *)f.gl_swizzle_mask);
-    }
+    glTexParameteriv(gl_target, GL_TEXTURE_SWIZZLE_RGBA,
+                     (const GLint *)f.gl_swizzle_mask);
 
     TextureBinding* ret = (TextureBinding *)g_malloc(sizeof(TextureBinding));
     ret->gl_target = gl_target;
