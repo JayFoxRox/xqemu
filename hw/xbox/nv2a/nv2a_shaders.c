@@ -622,7 +622,11 @@ GLSL_DEFINE(sceneAmbientColor, GLSL_LTCTXA(NV_IGRAPH_XF_LTCTXA_FR_AMB) ".xyz")
 
     qstring_append(body,
     "   oPos = invViewport * (tPosition * compositeMat);\n"
-    "   oPos.z = oPos.z * 2.0 - oPos.w;\n");
+    "   oPos.z = oPos.z * 2.0 - oPos.w;\n"
+    "   oPos.x += invViewport[0][0] * 32.0;\n"
+    "   oPos.y += invViewport[1][1] * 32.0;\n"
+    "   oPos.z += invViewport[2][2] * 0.0;\n"
+    "   oPos.w += invViewport[3][3] * 0.0;\n");
 
     qstring_append(body, "  vtx.inv_w = 1.0 / oPos.w;\n");
 

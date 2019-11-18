@@ -2965,6 +2965,13 @@ static void pgraph_shader_update_constants(PGRAPHState *pg,
             0, 0, 1.0/m33, 0,
             -1.0, 1.0, -m43/m33, 1.0
         };
+/*
+printf("update %f += %f/%f\n", invViewport[0], *(float*)&pg->vsh_constants[NV_IGRAPH_XF_XFCTX_VPOFF][0], m11);
+        invViewport[3*4+0] += *(float*)&pg->vsh_constants[NV_IGRAPH_XF_XFCTX_VPOFF][0] / m11;
+        invViewport[3*4+1] += *(float*)&pg->vsh_constants[NV_IGRAPH_XF_XFCTX_VPOFF][1] / m22;
+        invViewport[3*4+2] += *(float*)&pg->vsh_constants[NV_IGRAPH_XF_XFCTX_VPOFF][2] / m33;
+        invViewport[3*4+3] += *(float*)&pg->vsh_constants[NV_IGRAPH_XF_XFCTX_VPOFF][3];
+*/
 
         if (binding->inv_viewport_loc != -1) {
             glUniformMatrix4fv(binding->inv_viewport_loc,
