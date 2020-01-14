@@ -913,6 +913,13 @@ static void nabm_writel (void *opaque, uint32_t addr, uint32_t val)
         dolog ("BDBAR[%d] <- %#x (bdbar %#x)\n",
                GET_BM (index), val, r->bdbar);
         break;
+    case PI_PICB:
+    case PO_PICB:
+    case MC_PICB:
+    case SO_PICB:
+        /* PICB, PIV and CR. But PICB and PIV are RO */
+        nabm_writeb(opaque, addr + 3, (val >> 24) & 0xff);
+        break;
     case GLOB_CNT:
         if (val & GC_WR)
             warm_reset (s);
